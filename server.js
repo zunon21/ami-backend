@@ -8,6 +8,7 @@ const Project = require('./models/Project');
 const Donation = require('./models/Donation');
 const UserProfile = require('./models/UserProfile');
 const UserCommitment = require('./models/UserCommitment');
+const UserServiceCommitment = require('./models/UserServiceCommitment');
 const Admin = require('./models/Admin');
 const cors = require('cors');
 
@@ -16,14 +17,12 @@ const PORT = 5000;
 
 app.use(cors());
 
-// Webhook avec limite de taille augmentée (50 MB)
 app.use('/api/webhooks', express.raw({ type: 'application/json', limit: '50mb' }));
 app.post('/api/webhooks/chariow', async (req, res) => {
     console.log('Webhook reçu (body brut) :', req.body.toString());
     res.sendStatus(200);
 });
 
-// Augmentation de la limite pour les requêtes JSON (50 MB)
 app.use(express.json({ limit: '50mb' }));
 
 sequelize.sync({ alter: true })

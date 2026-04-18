@@ -6,6 +6,8 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const UserProfile = require('../models/UserProfile');
 const UserCommitment = require('../models/UserCommitment');
+const UserServiceCommitment = require('../models/UserServiceCommitment'); // AJOUT
+const Admin = require('../models/Admin');
 const authMiddleware = require('../middleware/authMiddleware');
 
 // Simuler une base de données temporaire pour les OTP
@@ -184,7 +186,6 @@ router.post('/admin/login', async (req, res) => {
         return res.status(400).json({ error: 'Email et mot de passe requis' });
     }
     try {
-        const Admin = require('../models/Admin');
         const admin = await Admin.findOne({ where: { email } });
         if (!admin) {
             return res.status(401).json({ error: 'Identifiants invalides' });
@@ -200,6 +201,7 @@ router.post('/admin/login', async (req, res) => {
         );
         res.json({ token, admin: { id: admin.id, email: admin.email, role: admin.role } });
     } catch (err) {
+        console.error('Erreur login admin :', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -224,7 +226,7 @@ router.get('/users', authMiddleware, async (req, res) => {
     }
 });
 
-// 11. Obtenir tous les engagements (pour le backoffice) - sans include, avec enrichissement manuel
+// 11. Obtenir tous les engagements (pour le backoffice)
 router.get('/commitments/all', authMiddleware, async (req, res) => {
     try {
         const commitments = await UserCommitment.findAll();
@@ -240,6 +242,53 @@ router.get('/commitments/all', authMiddleware, async (req, res) => {
         res.json(enriched);
     } catch (err) {
         console.error('Erreur récupération engagements :', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 12. Obtenir tous les engagements de services de l'utilisateur
+router.get('/service-commitments', authMiddleware, async (req, res) => {
+    try {
+        const commitments = await UserServiceCommitment.findAll({ where: { user_id: req.user.id } });
+        res.json(commitments);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 13. Créer un engagement de service
+router.post('/service-commitments', authMiddleware, async (req, res) => {
+    const { service_name, item_name, amount, day_of_month, periodicity, reason } = req.body;
+    if (!service_name || !item_name || !amount || !day_of_month) {
+        return res.status(400).json({ error: 'Champs requis manquants' });
+    }
+    try {
+        const commitment = await UserServiceCommitment.create({
+            user_id: req.user.id,
+            service_name,
+            item_name,
+            amount,
+            day_of_month,
+            periodicity: periodicity || 'mensuel',
+            reason: reason || null
+        });
+        res.status(201).json(commitment);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 14. Supprimer un engagement de service
+router.delete('/service-commitments/:id', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const commitment = await UserServiceCommitment.findOne({ where: { id, user_id: req.user.id } });
+        if (!commitment) {
+            return res.status(404).json({ error: 'Engagement non trouvé' });
+        }
+        await commitment.destroy();
+        res.json({ message: 'Engagement supprimé' });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
