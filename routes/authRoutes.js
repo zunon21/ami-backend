@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const UserProfile = require('../models/UserProfile');
 const UserCommitment = require('../models/UserCommitment');
-const UserServiceCommitment = require('../models/UserServiceCommitment'); // AJOUT
+const UserServiceCommitment = require('../models/UserServiceCommitment');
 const Admin = require('../models/Admin');
 const authMiddleware = require('../middleware/authMiddleware');
 
@@ -160,9 +160,9 @@ router.get('/commitment', authMiddleware, async (req, res) => {
     }
 });
 
-// 8. Créer ou mettre à jour l'engagement mensuel
+// 8. Créer ou mettre à jour l'engagement mensuel (avec périodicité)
 router.post('/commitment', authMiddleware, async (req, res) => {
-    const { amount, day_of_month, reason } = req.body;
+    const { amount, day_of_month, periodicity, reason } = req.body;
     if (!amount || !day_of_month) {
         return res.status(400).json({ error: 'Le montant et le jour sont requis' });
     }
@@ -171,6 +171,7 @@ router.post('/commitment', authMiddleware, async (req, res) => {
             user_id: req.user.id,
             amount,
             day_of_month,
+            periodicity: periodicity || 'mensuel',
             reason: reason || null
         });
         res.json({ message: 'Engagement enregistré', commitment });
