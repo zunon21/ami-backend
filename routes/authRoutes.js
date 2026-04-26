@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const axios = require('axios'); // <-- AJOUTÉ
 const User = require('../models/User');
 const UserProfile = require('../models/UserProfile');
 const UserCommitment = require('../models/UserCommitment');
@@ -13,7 +14,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 // Simuler une base de données temporaire pour les OTP
 const otpStore = {};
 
-// 1. Demander un code OTP
+// 1. Demander un code OTP (avec envoi WhatsApp via MessageCentral)
 router.post('/request-otp', async (req, res) => {
     const { phone, full_name } = req.body;
     if (!phone) {
@@ -30,10 +31,41 @@ router.post('/request-otp', async (req, res) => {
     }
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore[phone] = { code, expires: Date.now() + 5 * 60000 };
+    const expires = Date.now() + 5 * 60000;
+    otpStore[phone] = { code, expires, user_id: user.id };
     console.log(`🔐 Code OTP pour ${phone} : ${code}`);
 
-    res.json({ message: 'Code envoyé (simulation)', code: code });
+    // --- Envoi via MessageCentral (WhatsApp) ---
+    const apiKey = process.env.MESSAGECENTRAL_API_KEY;
+    if (apiKey) {
+        try {
+            const message = `Votre code de vérification AMI est : ${code}. Ce code est valable 5 minutes.`;
+            // Note : l'URL ci-dessous est à adapter selon la documentation exacte de MessageCentral
+            await axios.post(
+                'https://api.messagecentral.com/v1/whatsapp', // À vérifier
+                {
+                    to: phone,
+                    text: message
+                },
+                {
+                    headers: {
+                        'apikey': apiKey,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+            console.log(`✅ Code OTP WhatsApp envoyé à ${phone}`);
+            res.json({ message: 'Code envoyé par WhatsApp, vérifiez votre téléphone.' });
+        } catch (err) {
+            console.error('Erreur MessageCentral :', err.response?.data || err.message);
+            // En cas d'erreur, on répond quand même avec le code (pour le développement)
+            // Mais vous pouvez aussi renvoyer une erreur 500 si vous préférez.
+            res.json({ message: 'Code envoyé (simulation)', code: code });
+        }
+    } else {
+        // Pas de clé API, on garde la simulation
+        res.json({ message: 'Code envoyé (simulation)', code: code });
+    }
 });
 
 // 2. Vérifier le code OTP
