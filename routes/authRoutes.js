@@ -324,4 +324,19 @@ router.put('/service-commitments/:id', authMiddleware, async (req, res) => {
     }
 });
 
+// 16. Supprimer l'engagement mensuel de l'utilisateur (Fonctionnement de l'AMI)
+router.delete('/commitment', authMiddleware, async (req, res) => {
+    try {
+        const commitment = await UserCommitment.findOne({ where: { user_id: req.user.id } });
+        if (!commitment) {
+            return res.status(404).json({ error: 'Aucun engagement trouvé' });
+        }
+        await commitment.destroy();
+        res.json({ message: 'Engagement supprimé' });
+    } catch (err) {
+        console.error('Erreur suppression engagement :', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
