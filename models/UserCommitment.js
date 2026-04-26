@@ -11,7 +11,7 @@ const UserCommitment = sequelize.define('UserCommitment', {
         type: DataTypes.UUID,
         allowNull: false,
         references: { model: 'users', key: 'id' },
-        unique: true // un seul engagement par utilisateur
+        unique: true
     },
     amount: {
         type: DataTypes.DECIMAL(12,2),
@@ -21,6 +21,10 @@ const UserCommitment = sequelize.define('UserCommitment', {
         type: DataTypes.INTEGER,
         allowNull: false,
         validate: { min: 1, max: 31 }
+    },
+    periodicity: {
+        type: DataTypes.ENUM('mensuel', 'bimestriel', 'trimestriel', 'semestriel', 'annuel'),
+        defaultValue: 'mensuel'
     },
     reason: {
         type: DataTypes.TEXT,

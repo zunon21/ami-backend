@@ -294,4 +294,34 @@ router.delete('/service-commitments/:id', authMiddleware, async (req, res) => {
     }
 });
 
+// 15. Modifier un engagement de service (NOUVEAU - PUT)
+router.put('/service-commitments/:id', authMiddleware, async (req, res) => {
+    const { id } = req.params;
+    const { amount, day_of_month, periodicity, item_name, reason } = req.body;
+
+    try {
+        const commitment = await UserServiceCommitment.findOne({
+            where: { id, user_id: req.user.id }
+        });
+
+        if (!commitment) {
+            return res.status(404).json({ error: 'Engagement non trouvé' });
+        }
+
+        const updateData = {};
+        if (amount !== undefined) updateData.amount = amount;
+        if (day_of_month !== undefined) updateData.day_of_month = day_of_month;
+        if (periodicity) updateData.periodicity = periodicity;
+        if (item_name) updateData.item_name = item_name;
+        if (reason !== undefined) updateData.reason = reason;
+
+        await commitment.update(updateData);
+
+        res.json({ message: 'Engagement modifié', commitment });
+    } catch (err) {
+        console.error('Erreur modification engagement :', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
