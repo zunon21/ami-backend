@@ -13,7 +13,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 
 const otpStore = {};
 
-// 1. Demander un code OTP via MessageCentral VerifyNow (WhatsApp)
+// 1. Demander un code OTP (simulation – code renvoyé directement)
 router.post('/request-otp', async (req, res) => {
     const { phone, full_name } = req.body;
     if (!phone) {
@@ -34,42 +34,11 @@ router.post('/request-otp', async (req, res) => {
     otpStore[phone] = { code, expires, user_id: user.id };
     console.log(`🔐 Code OTP pour ${phone} : ${code}`);
 
-    const customerId = process.env.MESSAGECENTRAL_CUSTOMER_ID;
-    const apiKey = process.env.MESSAGECENTRAL_API_KEY;
-
-    if (!customerId || !apiKey) {
-        return res.status(500).json({ error: 'Identifiants MessageCentral manquants' });
-    }
-
-    try {
-        // 1. Obtenir un token d'authentification
-        const tokenRes = await axios.get(
-            `https://cpaas.messagecentral.com/auth/v1/authentication/token?customerId=${customerId}&key=${apiKey}&scope=NEW`,
-            { headers: { 'accept': '*/*' } }
-        );
-        const authToken = tokenRes.data.token;
-
-        // 2. Envoyer l'OTP via WhatsApp (supprimer le +225)
-        const mobileNumber = phone.replace(/^\+225/, '');
-        const sendRes = await axios.post(
-            `https://cpaas.messagecentral.com/verification/v3/send?countryCode=225&flowType=WHATSAPP&mobileNumber=${mobileNumber}&otpLength=6`,
-            {},
-            { headers: { 'authToken': authToken } }
-        );
-
-        if (sendRes.data.responseCode === 200) {
-            console.log(`✅ Code OTP WhatsApp envoyé à ${phone}`);
-            res.json({ message: 'Code envoyé par WhatsApp, vérifiez votre téléphone.' });
-        } else {
-            throw new Error(sendRes.data.message || 'Erreur lors de l\'envoi');
-        }
-    } catch (err) {
-        console.error('Erreur MessageCentral :', err.response?.data || err.message);
-        res.status(500).json({ error: err.response?.data?.message || err.message });
-    }
+    // Renvoyer le code directement dans la réponse (simulation)
+    res.json({ message: 'Code OTP', code: code });
 });
 
-// 2. Vérifier le code OTP (inchangé)
+// 2. Vérifier le code OTP
 router.post('/verify-otp', async (req, res) => {
     const { phone, code } = req.body;
     const stored = otpStore[phone];
