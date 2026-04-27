@@ -13,7 +13,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 
 const otpStore = {};
 
-// 1. Demander un code OTP (avec envoi WhatsApp via MessageCentral)
+// 1. Demander un code OTP via MessageCentral VerifyNow (WhatsApp)
 router.post('/request-otp', async (req, res) => {
     const { phone, full_name } = req.body;
     if (!phone) {
@@ -34,37 +34,42 @@ router.post('/request-otp', async (req, res) => {
     otpStore[phone] = { code, expires, user_id: user.id };
     console.log(`🔐 Code OTP pour ${phone} : ${code}`);
 
+    const customerId = process.env.MESSAGECENTRAL_CUSTOMER_ID;
     const apiKey = process.env.MESSAGECENTRAL_API_KEY;
-    if (!apiKey) {
-        return res.status(500).json({ error: 'Clé API MessageCentral manquante' });
+
+    if (!customerId || !apiKey) {
+        return res.status(500).json({ error: 'Identifiants MessageCentral manquants' });
     }
 
     try {
-        const message = `Votre code de vérification AMI est : ${code}. Ce code est valable 5 minutes.`;
-        // URL à adapter selon la documentation MessageCentral
-        await axios.post(
-            'https://api.messagecentral.com/v1/whatsapp',
-            {
-                to: phone,
-                text: message
-            },
-            {
-                headers: {
-                    'apikey': apiKey,
-                    'Content-Type': 'application/json'
-                }
-            }
+        // 1. Obtenir un token d'authentification
+        const tokenRes = await axios.get(
+            `https://cpaas.messagecentral.com/auth/v1/authentication/token?customerId=${customerId}&key=${apiKey}&scope=NEW`,
+            { headers: { 'accept': '*/*' } }
         );
-        console.log(`✅ Code OTP WhatsApp envoyé à ${phone}`);
-        res.json({ message: 'Code envoyé par WhatsApp, vérifiez votre téléphone.' });
+        const authToken = tokenRes.data.token;
+
+        // 2. Envoyer l'OTP via WhatsApp (supprimer le +225)
+        const mobileNumber = phone.replace(/^\+225/, '');
+        const sendRes = await axios.post(
+            `https://cpaas.messagecentral.com/verification/v3/send?countryCode=225&flowType=WHATSAPP&mobileNumber=${mobileNumber}&otpLength=6`,
+            {},
+            { headers: { 'authToken': authToken } }
+        );
+
+        if (sendRes.data.responseCode === 200) {
+            console.log(`✅ Code OTP WhatsApp envoyé à ${phone}`);
+            res.json({ message: 'Code envoyé par WhatsApp, vérifiez votre téléphone.' });
+        } else {
+            throw new Error(sendRes.data.message || 'Erreur lors de l\'envoi');
+        }
     } catch (err) {
         console.error('Erreur MessageCentral :', err.response?.data || err.message);
-        // On renvoie l'erreur réelle pour diagnostic
-        res.status(500).json({ error: err.response?.data || err.message });
+        res.status(500).json({ error: err.response?.data?.message || err.message });
     }
 });
 
-// 2. Vérifier le code OTP
+// 2. Vérifier le code OTP (inchangé)
 router.post('/verify-otp', async (req, res) => {
     const { phone, code } = req.body;
     const stored = otpStore[phone];
@@ -322,7 +327,7 @@ router.delete('/service-commitments/:id', authMiddleware, async (req, res) => {
     }
 });
 
-// 15. Modifier un engagement de service (NOUVEAU - PUT)
+// 15. Modifier un engagement de service (PUT)
 router.put('/service-commitments/:id', authMiddleware, async (req, res) => {
     const { id } = req.params;
     const { amount, day_of_month, periodicity, item_name, reason } = req.body;
