@@ -346,7 +346,7 @@ router.post('/request-admin-otp', async (req, res) => {
         await transporter.sendMail({
             from: `"AMI Admin" <${process.env.EMAIL_USER}>`,
             to: email,
-            subject: 'Code d\’accès au backoffice AMI',
+            subject: 'Code d\'accès au backoffice AMI',
             text: `Votre code de connexion est : ${code}. Ce code est valable 5 minutes.`
         });
         console.log(`✅ Code OTP admin envoyé à ${email} : ${code}`);
