@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
+const nodemailer = require('nodemailer'); // AJOUTÉ
 const User = require('../models/User');
 const UserProfile = require('../models/UserProfile');
 const UserCommitment = require('../models/UserCommitment');
@@ -12,6 +13,16 @@ const Admin = require('../models/Admin');
 const authMiddleware = require('../middleware/authMiddleware');
 
 const otpStore = {};
+const adminOtpStore = {}; // Stockage des OTP pour admin
+
+// Configuration du transporteur email (Gmail)
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
 
 // 1. Demander un code OTP (simulation – code renvoyé directement)
 router.post('/request-otp', async (req, res) => {
@@ -182,7 +193,7 @@ router.post('/commitment', authMiddleware, async (req, res) => {
     }
 });
 
-// 9. Login administrateur
+// 9. Login administrateur (ancienne méthode – conservée)
 router.post('/admin/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -339,6 +350,54 @@ router.delete('/commitment', authMiddleware, async (req, res) => {
         console.error('Erreur suppression engagement :', err);
         res.status(500).json({ error: err.message });
     }
+});
+
+// 17. Demander un code OTP pour l'admin (envoi par email)
+router.post('/request-admin-otp', async (req, res) => {
+    const { email } = req.body;
+    if (email !== process.env.ADMIN_EMAIL) {
+        return res.status(401).json({ error: 'Email non autorisé' });
+    }
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = Date.now() + 5 * 60000;
+    adminOtpStore[email] = { code, expires };
+    try {
+        await transporter.sendMail({
+            from: `"AMI Admin" <${process.env.EMAIL_USER}>`,
+            to: email,
+            subject: 'Code d’accès au backoffice AMI',
+            text: `Votre code de connexion est : ${code}. Ce code est valable 5 minutes.`
+        });
+        console.log(`✅ Code OTP admin envoyé à ${email} : ${code}`);
+        res.json({ message: 'Code envoyé par email.' });
+    } catch (err) {
+        console.error('Erreur envoi email :', err);
+        res.status(500).json({ error: 'Erreur lors de l’envoi du code.' });
+    }
+});
+
+// 18. Vérifier le code OTP admin et générer le token JWT
+router.post('/verify-admin-otp', async (req, res) => {
+    const { email, code } = req.body;
+    const stored = adminOtpStore[email];
+    if (!stored || stored.code !== code || stored.expires < Date.now()) {
+        return res.status(401).json({ error: 'Code invalide ou expiré' });
+    }
+    let admin = await Admin.findOne({ where: { email } });
+    if (!admin) {
+        admin = await Admin.create({
+            email,
+            password: '', // pas de mot de passe, car on utilise OTP
+            role: 'admin'
+        });
+    }
+    const token = jwt.sign(
+        { id: admin.id, email: admin.email, role: admin.role },
+        process.env.JWT_SECRET,
+        { expiresIn: '1d' }
+    );
+    delete adminOtpStore[email];
+    res.json({ token, admin: { id: admin.id, email: admin.email, role: admin.role } });
 });
 
 module.exports = router;
