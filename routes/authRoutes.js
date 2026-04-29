@@ -15,7 +15,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 const otpStore = {};
 const adminOtpStore = {};
 
-// Configuration SMTP avec port 587 (STARTTLS) pour éviter les blocages Render
+// Configuration SMTP avec port 587 (STARTTLS) et force IPv4
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
@@ -23,7 +23,8 @@ const transporter = nodemailer.createTransport({
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
-    }
+    },
+    family: 4 // Force l'utilisation de l'IPv4 pour éviter les problèmes de connexion sur Render
 });
 
 router.post('/request-otp', async (req, res) => {
