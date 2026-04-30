@@ -4,7 +4,6 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
-const nodemailer = require('nodemailer');
 const User = require('../models/User');
 const UserProfile = require('../models/UserProfile');
 const UserCommitment = require('../models/UserCommitment');
@@ -13,23 +12,8 @@ const Admin = require('../models/Admin');
 const authMiddleware = require('../middleware/authMiddleware');
 
 const otpStore = {};
-const adminOtpStore = {};
 
-// Configuration SMTP avec port 587, IPv4 forcé et timeouts
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,               // STARTTLS
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    },
-    family: 4,                   // Force l'utilisation de l'IPv4
-    connectionTimeout: 10000,    // 10 secondes
-    greetingTimeout: 10000,
-    socketTimeout: 15000
-});
-
+// 1. Demander un code OTP (simulation – code renvoyé directement)
 router.post('/request-otp', async (req, res) => {
     const { phone, full_name } = req.body;
     if (!phone) {
@@ -53,6 +37,7 @@ router.post('/request-otp', async (req, res) => {
     res.json({ message: 'Code OTP', code: code });
 });
 
+// 2. Vérifier le code OTP
 router.post('/verify-otp', async (req, res) => {
     const { phone, code } = req.body;
     const stored = otpStore[phone];
@@ -85,6 +70,7 @@ router.post('/verify-otp', async (req, res) => {
     });
 });
 
+// 3. Mettre à jour le nom de l'utilisateur
 router.put('/update-name', async (req, res) => {
     const { name } = req.body;
     const authHeader = req.headers.authorization;
@@ -102,6 +88,7 @@ router.put('/update-name', async (req, res) => {
     }
 });
 
+// 4. Compléter le profil utilisateur
 router.post('/complete-profile', async (req, res) => {
     const { first_name, gender, age, city, profession, church_org } = req.body;
     const authHeader = req.headers.authorization;
@@ -130,6 +117,7 @@ router.post('/complete-profile', async (req, res) => {
     }
 });
 
+// 5. Obtenir les informations de l'utilisateur connecté
 router.get('/me', authMiddleware, async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id, {
@@ -144,6 +132,7 @@ router.get('/me', authMiddleware, async (req, res) => {
     }
 });
 
+// 6. Obtenir le profil utilisateur (prénom, etc.)
 router.get('/profile', authMiddleware, async (req, res) => {
     try {
         const profile = await UserProfile.findOne({
@@ -159,6 +148,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
     }
 });
 
+// 7. Obtenir l'engagement mensuel de l'utilisateur
 router.get('/commitment', authMiddleware, async (req, res) => {
     try {
         const commitment = await UserCommitment.findOne({ where: { user_id: req.user.id } });
@@ -171,6 +161,7 @@ router.get('/commitment', authMiddleware, async (req, res) => {
     }
 });
 
+// 8. Créer ou mettre à jour l'engagement mensuel (avec périodicité)
 router.post('/commitment', authMiddleware, async (req, res) => {
     const { amount, day_of_month, periodicity, reason } = req.body;
     if (!amount || !day_of_month) {
@@ -190,32 +181,21 @@ router.post('/commitment', authMiddleware, async (req, res) => {
     }
 });
 
+// 9. Login administrateur simplifié (mot de passe fixe)
 router.post('/admin/login', async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email et mot de passe requis' });
-    }
-    try {
-        const admin = await Admin.findOne({ where: { email } });
-        if (!admin) {
-            return res.status(401).json({ error: 'Identifiants invalides' });
-        }
-        const valid = await admin.verifyPassword(password);
-        if (!valid) {
-            return res.status(401).json({ error: 'Identifiants invalides' });
-        }
+    const { password } = req.body;
+    if (password === 'AMI1990') {
         const token = jwt.sign(
-            { id: admin.id, email: admin.email, role: admin.role },
+            { id: 'admin-fixed', role: 'admin' },
             process.env.JWT_SECRET,
             { expiresIn: '1d' }
         );
-        res.json({ token, admin: { id: admin.id, email: admin.email, role: admin.role } });
-    } catch (err) {
-        console.error('Erreur login admin :', err);
-        res.status(500).json({ error: err.message });
+        return res.json({ token, admin: { role: 'admin' } });
     }
+    return res.status(401).json({ error: 'Mot de passe incorrect' });
 });
 
+// 10. Obtenir la liste des utilisateurs (pour le backoffice) avec les informations du profil
 router.get('/users', authMiddleware, async (req, res) => {
     try {
         const users = await User.findAll({
@@ -235,6 +215,7 @@ router.get('/users', authMiddleware, async (req, res) => {
     }
 });
 
+// 11. Obtenir tous les engagements (pour le backoffice)
 router.get('/commitments/all', authMiddleware, async (req, res) => {
     try {
         const commitments = await UserCommitment.findAll();
@@ -254,6 +235,7 @@ router.get('/commitments/all', authMiddleware, async (req, res) => {
     }
 });
 
+// 12. Obtenir tous les engagements de services de l'utilisateur
 router.get('/service-commitments', authMiddleware, async (req, res) => {
     try {
         const commitments = await UserServiceCommitment.findAll({ where: { user_id: req.user.id } });
@@ -263,6 +245,7 @@ router.get('/service-commitments', authMiddleware, async (req, res) => {
     }
 });
 
+// 13. Créer un engagement de service
 router.post('/service-commitments', authMiddleware, async (req, res) => {
     const { service_name, item_name, amount, day_of_month, periodicity, reason } = req.body;
     if (!service_name || !item_name || !amount || !day_of_month) {
@@ -284,6 +267,7 @@ router.post('/service-commitments', authMiddleware, async (req, res) => {
     }
 });
 
+// 14. Supprimer un engagement de service
 router.delete('/service-commitments/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
@@ -298,6 +282,7 @@ router.delete('/service-commitments/:id', authMiddleware, async (req, res) => {
     }
 });
 
+// 15. Modifier un engagement de service (PUT)
 router.put('/service-commitments/:id', authMiddleware, async (req, res) => {
     const { id } = req.params;
     const { amount, day_of_month, periodicity, item_name, reason } = req.body;
@@ -327,6 +312,7 @@ router.put('/service-commitments/:id', authMiddleware, async (req, res) => {
     }
 });
 
+// 16. Supprimer l'engagement mensuel de l'utilisateur (Fonctionnement de l'AMI)
 router.delete('/commitment', authMiddleware, async (req, res) => {
     try {
         const commitment = await UserCommitment.findOne({ where: { user_id: req.user.id } });
@@ -339,52 +325,6 @@ router.delete('/commitment', authMiddleware, async (req, res) => {
         console.error('Erreur suppression engagement :', err);
         res.status(500).json({ error: err.message });
     }
-});
-
-router.post('/request-admin-otp', async (req, res) => {
-    const { email } = req.body;
-    if (email !== process.env.ADMIN_EMAIL) {
-        return res.status(401).json({ error: 'Email non autorisé' });
-    }
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expires = Date.now() + 5 * 60000;
-    adminOtpStore[email] = { code, expires };
-    try {
-        await transporter.sendMail({
-            from: `"AMI Admin" <${process.env.EMAIL_USER}>`,
-            to: email,
-            subject: 'Code d\'accès au backoffice AMI',
-            text: `Votre code de connexion est : ${code}. Ce code est valable 5 minutes.`
-        });
-        console.log(`✅ Code OTP admin envoyé à ${email} : ${code}`);
-        res.json({ message: 'Code envoyé par email.' });
-    } catch (err) {
-        console.error('Erreur envoi email :', err);
-        res.status(500).json({ error: 'Erreur lors de l’envoi du code.' });
-    }
-});
-
-router.post('/verify-admin-otp', async (req, res) => {
-    const { email, code } = req.body;
-    const stored = adminOtpStore[email];
-    if (!stored || stored.code !== code || stored.expires < Date.now()) {
-        return res.status(401).json({ error: 'Code invalide ou expiré' });
-    }
-    let admin = await Admin.findOne({ where: { email } });
-    if (!admin) {
-        admin = await Admin.create({
-            email,
-            password: '',
-            role: 'admin'
-        });
-    }
-    const token = jwt.sign(
-        { id: admin.id, email: admin.email, role: admin.role },
-        process.env.JWT_SECRET,
-        { expiresIn: '1d' }
-    );
-    delete adminOtpStore[email];
-    res.json({ token, admin: { id: admin.id, email: admin.email, role: admin.role } });
 });
 
 module.exports = router;
