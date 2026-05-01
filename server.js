@@ -3,6 +3,8 @@ const sequelize = require('./database');
 const authRoutes = require('./routes/authRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const donationRoutes = require('./routes/donationRoutes');
+const serviceItemRoutes = require('./routes/serviceItemRoutes');
+const archiveRoutes = require('./routes/archiveRoutes');
 const User = require('./models/User');
 const Project = require('./models/Project');
 const Donation = require('./models/Donation');
@@ -10,6 +12,9 @@ const UserProfile = require('./models/UserProfile');
 const UserCommitment = require('./models/UserCommitment');
 const UserServiceCommitment = require('./models/UserServiceCommitment');
 const Admin = require('./models/Admin');
+// Nouveaux modèles pour les tables service_categories et service_items
+const ServiceCategory = require('./models/ServiceCategory');
+const ServiceItem = require('./models/ServiceItem');
 const cors = require('cors');
 
 const app = express();
@@ -32,6 +37,8 @@ sequelize.sync({ alter: true })
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/donations', donationRoutes);
+app.use('/api/service-items', serviceItemRoutes);
+app.use('/api/archives', archiveRoutes);
 
 app.get('/', (req, res) => {
     res.send('API AMI opérationnelle');

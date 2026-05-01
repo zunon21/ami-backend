@@ -215,7 +215,7 @@ router.get('/users', authMiddleware, async (req, res) => {
     }
 });
 
-// 11. Obtenir tous les engagements (pour le backoffice)
+// 11. Obtenir tous les engagements mensuels (pour le backoffice)
 router.get('/commitments/all', authMiddleware, async (req, res) => {
     try {
         const commitments = await UserCommitment.findAll();
@@ -235,7 +235,7 @@ router.get('/commitments/all', authMiddleware, async (req, res) => {
     }
 });
 
-// 12. Obtenir tous les engagements de services de l'utilisateur
+// 12. Obtenir tous les engagements de service de l'utilisateur connecté
 router.get('/service-commitments', authMiddleware, async (req, res) => {
     try {
         const commitments = await UserServiceCommitment.findAll({ where: { user_id: req.user.id } });
@@ -267,7 +267,7 @@ router.post('/service-commitments', authMiddleware, async (req, res) => {
     }
 });
 
-// 14. Supprimer un engagement de service
+// 14. Supprimer un engagement de service (de l'utilisateur)
 router.delete('/service-commitments/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
@@ -323,6 +323,20 @@ router.delete('/commitment', authMiddleware, async (req, res) => {
         res.json({ message: 'Engagement supprimé' });
     } catch (err) {
         console.error('Erreur suppression engagement :', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 17. Récupérer tous les engagements de service (pour le backoffice admin)
+router.get('/service-commitments/all', authMiddleware, async (req, res) => {
+    try {
+        const commitments = await UserServiceCommitment.findAll({
+            include: [{ model: User, attributes: ['id', 'phone', 'full_name'] }],
+            order: [['createdAt', 'DESC']]
+        });
+        res.json(commitments);
+    } catch (err) {
+        console.error('Erreur récupération engagements service :', err);
         res.status(500).json({ error: err.message });
     }
 });
