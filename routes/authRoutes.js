@@ -120,7 +120,7 @@ router.post('/complete-profile', async (req, res) => {
 // 5. Obtenir les informations de l'utilisateur connecté
 router.get('/me', authMiddleware, async (req, res) => {
     try {
-        const user = await User.findByPk(req.user.id, {
+        const user = await User.findByPk(req.userId, {
             attributes: ['id', 'full_name', 'phone', 'is_verified', 'createdAt']
         });
         if (!user) {
@@ -136,7 +136,7 @@ router.get('/me', authMiddleware, async (req, res) => {
 router.get('/profile', authMiddleware, async (req, res) => {
     try {
         const profile = await UserProfile.findOne({
-            where: { user_id: req.user.id },
+            where: { user_id: req.userId },
             attributes: ['first_name', 'gender', 'age', 'city', 'profession', 'church_org']
         });
         if (!profile) {
@@ -151,7 +151,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
 // 7. Obtenir l'engagement mensuel de l'utilisateur
 router.get('/commitment', authMiddleware, async (req, res) => {
     try {
-        const commitment = await UserCommitment.findOne({ where: { user_id: req.user.id } });
+        const commitment = await UserCommitment.findOne({ where: { user_id: req.userId } });
         if (!commitment) {
             return res.status(404).json({ error: 'Aucun engagement trouvé' });
         }
@@ -169,7 +169,7 @@ router.post('/commitment', authMiddleware, async (req, res) => {
     }
     try {
         const [commitment, created] = await UserCommitment.upsert({
-            user_id: req.user.id,
+            user_id: req.userId,
             amount,
             day_of_month,
             periodicity: periodicity || 'mensuel',
@@ -238,24 +238,58 @@ router.get('/commitments/all', authMiddleware, async (req, res) => {
 // 12. Obtenir tous les engagements de service de l'utilisateur connecté
 router.get('/service-commitments', authMiddleware, async (req, res) => {
     try {
-        const commitments = await UserServiceCommitment.findAll({ where: { user_id: req.user.id } });
+        const commitments = await UserServiceCommitment.findAll({ where: { user_id: req.userId } });
         res.json(commitments);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// 13. Créer un engagement de service
+// 13. Créer un engagement de service (avec gestion insensible pour Missionnaires)
 router.post('/service-commitments', authMiddleware, async (req, res) => {
-    const { service_name, item_name, amount, day_of_month, periodicity, reason } = req.body;
-    if (!service_name || !item_name || !amount || !day_of_month) {
-        return res.status(400).json({ error: 'Champs requis manquants' });
+    let { service_name, item_name, amount, day_of_month, periodicity, reason } = req.body;
+    if (!service_name || !amount || !day_of_month) {
+        return res.status(400).json({ error: 'service_name, amount et day_of_month sont requis' });
+    }
+    // Normalisation : minuscules, sans accents
+    const normalize = (str) => {
+        if (!str) return '';
+        return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    };
+    const normalizedService = normalize(service_name);
+    if (!item_name || item_name.trim() === '') {
+        item_name = service_name;
     }
     try {
+        const ServiceCategory = require('../models/ServiceCategory');
+        const ServiceItem = require('../models/ServiceItem');
+        const allCategories = await ServiceCategory.findAll();
+        // Recherche normalisée
+        let category = allCategories.find(c => normalize(c.name) === normalizedService);
+        // Si non trouvé et que le nom contient "missionnaire", on essaie 'missionnaire' et 'missionnaires'
+        if (!category && normalizedService.includes('missionnaire')) {
+            category = allCategories.find(c => normalize(c.name) === 'missionnaire') ||
+                       allCategories.find(c => normalize(c.name) === 'missionnaires');
+        }
+        if (!category) {
+            return res.status(400).json({ error: `Catégorie inconnue : ${service_name}` });
+        }
+        // Chercher ou créer l'item
+        let item = await ServiceItem.findOne({ 
+            where: { category_id: category.id, name: item_name, is_active: true }
+        });
+        if (!item) {
+            item = await ServiceItem.create({
+                category_id: category.id,
+                name: item_name,
+                is_active: true
+            });
+        }
         const commitment = await UserServiceCommitment.create({
-            user_id: req.user.id,
-            service_name,
-            item_name,
+            user_id: req.userId,
+            item_id: item.id,
+            service_name: category.name,
+            item_name: item.name,
             amount,
             day_of_month,
             periodicity: periodicity || 'mensuel',
@@ -263,6 +297,7 @@ router.post('/service-commitments', authMiddleware, async (req, res) => {
         });
         res.status(201).json(commitment);
     } catch (err) {
+        console.error('Erreur création engagement :', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -271,7 +306,7 @@ router.post('/service-commitments', authMiddleware, async (req, res) => {
 router.delete('/service-commitments/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
-        const commitment = await UserServiceCommitment.findOne({ where: { id, user_id: req.user.id } });
+        const commitment = await UserServiceCommitment.findOne({ where: { id, user_id: req.userId } });
         if (!commitment) {
             return res.status(404).json({ error: 'Engagement non trouvé' });
         }
@@ -289,7 +324,7 @@ router.put('/service-commitments/:id', authMiddleware, async (req, res) => {
 
     try {
         const commitment = await UserServiceCommitment.findOne({
-            where: { id, user_id: req.user.id }
+            where: { id, user_id: req.userId }
         });
 
         if (!commitment) {
@@ -315,7 +350,7 @@ router.put('/service-commitments/:id', authMiddleware, async (req, res) => {
 // 16. Supprimer l'engagement mensuel de l'utilisateur (Fonctionnement de l'AMI)
 router.delete('/commitment', authMiddleware, async (req, res) => {
     try {
-        const commitment = await UserCommitment.findOne({ where: { user_id: req.user.id } });
+        const commitment = await UserCommitment.findOne({ where: { user_id: req.userId } });
         if (!commitment) {
             return res.status(404).json({ error: 'Aucun engagement trouvé' });
         }
@@ -327,14 +362,22 @@ router.delete('/commitment', authMiddleware, async (req, res) => {
     }
 });
 
-// 17. Récupérer tous les engagements de service (pour le backoffice admin)
+// 17. Récupérer tous les engagements de service (pour le backoffice admin) avec UserProfile (enrichissement manuel)
 router.get('/service-commitments/all', authMiddleware, async (req, res) => {
     try {
         const commitments = await UserServiceCommitment.findAll({
             include: [{ model: User, attributes: ['id', 'phone', 'full_name'] }],
             order: [['createdAt', 'DESC']]
         });
-        res.json(commitments);
+        // Enrichir manuellement avec UserProfile
+        const enriched = await Promise.all(commitments.map(async (c) => {
+            const profile = await UserProfile.findOne({ where: { user_id: c.user_id }, attributes: ['first_name'] });
+            return {
+                ...c.toJSON(),
+                UserProfile: profile ? profile.toJSON() : null
+            };
+        }));
+        res.json(enriched);
     } catch (err) {
         console.error('Erreur récupération engagements service :', err);
         res.status(500).json({ error: err.message });

@@ -2,12 +2,12 @@
 const sequelize = require('./database');
 const authRoutes = require('./routes/authRoutes');
 const projectRoutes = require('./routes/projectRoutes');
-const donationRoutes = require('./routes/donationRoutes');
+// const donationRoutes = require('./routes/donationRoutes'); // Commenté temporairement
 const serviceItemRoutes = require('./routes/serviceItemRoutes');
 const archiveRoutes = require('./routes/archiveRoutes');
 const User = require('./models/User');
 const Project = require('./models/Project');
-const Donation = require('./models/Donation');
+// const Donation = require('./models/Donation');
 const UserProfile = require('./models/UserProfile');
 const UserCommitment = require('./models/UserCommitment');
 const UserServiceCommitment = require('./models/UserServiceCommitment');
@@ -36,7 +36,7 @@ sequelize.sync({ alter: true })
 
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
-app.use('/api/donations', donationRoutes);
+// app.use('/api/donations', donationRoutes); // Commenté temporairement
 app.use('/api/service-items', serviceItemRoutes);
 app.use('/api/archives', archiveRoutes);
 
