@@ -44,6 +44,11 @@ app.get('/', (req, res) => {
     res.send('API AMI opérationnelle');
 });
 
+// Route pour /api (évite l'erreur "Cannot GET /api")
+app.get('/api', (req, res) => {
+    res.json({ message: 'API AMI opérationnelle' });
+});
+
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Serveur démarré sur http://0.0.0.0:${PORT}`);
 });
