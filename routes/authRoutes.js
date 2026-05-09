@@ -195,8 +195,8 @@ router.post('/admin/login', async (req, res) => {
     return res.status(401).json({ error: 'Mot de passe incorrect' });
 });
 
-// 10. Obtenir la liste des utilisateurs (pour le backoffice) avec les informations du profil
-router.get('/users', authMiddleware, async (req, res) => {
+// 10. Obtenir la liste des utilisateurs (PUBLIQUE – sans authentification)
+router.get('/users', async (req, res) => {
     try {
         const users = await User.findAll({
             attributes: ['id', 'full_name', 'phone', 'is_verified', 'createdAt']
@@ -215,8 +215,8 @@ router.get('/users', authMiddleware, async (req, res) => {
     }
 });
 
-// 11. Obtenir tous les engagements mensuels (pour le backoffice)
-router.get('/commitments/all', authMiddleware, async (req, res) => {
+// 11. Obtenir tous les engagements mensuels (pour le backoffice) – public
+router.get('/commitments/all', async (req, res) => {
     try {
         const commitments = await UserCommitment.findAll();
         const enriched = await Promise.all(commitments.map(async (c) => {
@@ -264,9 +264,7 @@ router.post('/service-commitments', authMiddleware, async (req, res) => {
         const ServiceCategory = require('../models/ServiceCategory');
         const ServiceItem = require('../models/ServiceItem');
         const allCategories = await ServiceCategory.findAll();
-        // Recherche normalisée
         let category = allCategories.find(c => normalize(c.name) === normalizedService);
-        // Si non trouvé et que le nom contient "missionnaire", on essaie 'missionnaire' et 'missionnaires'
         if (!category && normalizedService.includes('missionnaire')) {
             category = allCategories.find(c => normalize(c.name) === 'missionnaire') ||
                        allCategories.find(c => normalize(c.name) === 'missionnaires');
@@ -274,7 +272,6 @@ router.post('/service-commitments', authMiddleware, async (req, res) => {
         if (!category) {
             return res.status(400).json({ error: `Catégorie inconnue : ${service_name}` });
         }
-        // Chercher ou créer l'item
         let item = await ServiceItem.findOne({ 
             where: { category_id: category.id, name: item_name, is_active: true }
         });
@@ -362,14 +359,13 @@ router.delete('/commitment', authMiddleware, async (req, res) => {
     }
 });
 
-// 17. Récupérer tous les engagements de service (pour le backoffice admin) avec UserProfile (enrichissement manuel)
-router.get('/service-commitments/all', authMiddleware, async (req, res) => {
+// 17. Récupérer tous les engagements de service (pour le backoffice admin) avec UserProfile (enrichissement manuel) – public
+router.get('/service-commitments/all', async (req, res) => {
     try {
         const commitments = await UserServiceCommitment.findAll({
             include: [{ model: User, attributes: ['id', 'phone', 'full_name'] }],
             order: [['createdAt', 'DESC']]
         });
-        // Enrichir manuellement avec UserProfile
         const enriched = await Promise.all(commitments.map(async (c) => {
             const profile = await UserProfile.findOne({ where: { user_id: c.user_id }, attributes: ['first_name'] });
             return {
