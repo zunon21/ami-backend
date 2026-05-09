@@ -20,7 +20,8 @@ const cors = require('cors');
 const app = express();
 const PORT = 5000;
 
-app.use(cors());
+// Configuration CORS pour accepter toutes les origines (dépannage)
+app.use(cors({ origin: '*' }));
 
 app.use('/api/webhooks', express.raw({ type: 'application/json', limit: '50mb' }));
 app.post('/api/webhooks/chariow', async (req, res) => {
