@@ -35,7 +35,11 @@ sequelize.sync({ alter: true })
     .then(() => console.log('✅ Base de données synchronisée'))
     .catch(err => console.error('❌ Erreur sync:', err));
 
-app.use('/api/auth', authRoutes);
+// Middleware pour désactiver l'authentification (passe-plat)
+const noAuth = (req, res, next) => next();
+
+// Routes - L'authentification est désactivée pour toutes les routes /api/auth
+app.use('/api/auth', noAuth, authRoutes);
 app.use('/api/projects', projectRoutes);
 // app.use('/api/donations', donationRoutes); // Commenté temporairement
 app.use('/api/service-items', serviceItemRoutes);
