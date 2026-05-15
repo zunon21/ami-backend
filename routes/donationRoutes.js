@@ -12,7 +12,7 @@ router.use(authMiddleware);
 // Route pour faire un don direct (simulation, paiement immédiatement réussi)
 router.post('/', async (req, res) => {
     try {
-        const { project_id, amount, is_anonymous, donation_type, description } = req.body;
+        const { project_id, amount, is_anonymous, donation_type, description, payment_method, extra_data } = req.body;
         const user_id = req.userId;
 
         if (!project_id || !amount) {
@@ -29,7 +29,9 @@ router.post('/', async (req, res) => {
             donation_type: donation_type || 'one_time',
             status: 'success',
             transaction_reference,
-            description: description || null
+            description: description || null,
+            payment_method: payment_method || null,
+            extra_data: extra_data || null
         });
 
         res.status(201).json(donation);
@@ -41,7 +43,7 @@ router.post('/', async (req, res) => {
 // Route pour initier un don via JEKO (paiement réel)
 router.post('/initiate', async (req, res) => {
     try {
-        const { project_id, amount, is_anonymous, donation_type, paymentMethod, description } = req.body;
+        const { project_id, amount, is_anonymous, donation_type, paymentMethod, description, extra_data } = req.body;
         const user_id = req.userId;
 
         if (!project_id || !amount) {
@@ -69,7 +71,9 @@ router.post('/initiate', async (req, res) => {
             donation_type: donation_type || 'one_time',
             status: 'pending',
             transaction_reference,
-            description: description || null
+            description: description || null,
+            payment_method: paymentMethod || null,
+            extra_data: extra_data || null
         });
 
         // Appeler le service JEKO pour initier le paiement

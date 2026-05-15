@@ -36,6 +36,16 @@ const Donation = sequelize.define('Donation', {
     donation_type: {
         type: DataTypes.ENUM('one_time', 'recurring'),
         defaultValue: 'one_time'
+    },
+    payment_method: {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+        comment: 'wave, orange, mtn, moov, djamo'
+    },
+    extra_data: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        comment: 'Stockage des infos supplémentaires (organisation, destinations, etc.)'
     }
 }, {
     tableName: 'donations',
