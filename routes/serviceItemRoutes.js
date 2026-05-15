@@ -27,8 +27,8 @@ router.get('/categories', async (req, res) => {
   }
 });
 
-// Ajouter un item
-router.post('/items', authMiddleware, async (req, res) => {
+// Ajouter un item (sans auth pour le backoffice)
+router.post('/items', async (req, res) => {
   try {
     const { category_id, name } = req.body;
     if (!category_id || !name) {
@@ -55,8 +55,8 @@ router.post('/items', authMiddleware, async (req, res) => {
   }
 });
 
-// Modifier un item
-router.put('/items/:id', authMiddleware, async (req, res) => {
+// Modifier un item (sans auth pour le backoffice)
+router.put('/items/:id', async (req, res) => {
   try {
     const item = await ServiceItem.findByPk(req.params.id);
     if (!item) {
@@ -69,8 +69,8 @@ router.put('/items/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// Supprimer un item (soft delete + archive des engagements)
-router.delete('/items/:id', authMiddleware, async (req, res) => {
+// Supprimer un item (soft delete + archive des engagements) (sans auth pour le backoffice)
+router.delete('/items/:id', async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const item = await ServiceItem.findByPk(req.params.id);
@@ -104,7 +104,6 @@ router.post('/reorder', async (req, res) => {
   try {
     for (let i = 0; i < item_ids.length; i++) {
       const itemId = item_ids[i];
-      // Vérifier que l'item existe bien et appartient à la catégorie
       const item = await ServiceItem.findOne({
         where: { id: itemId, category_id },
         transaction
@@ -113,7 +112,6 @@ router.post('/reorder', async (req, res) => {
         await transaction.rollback();
         return res.status(404).json({ error: `Item ${itemId} non trouvé dans cette catégorie` });
       }
-      // Mettre à jour display_order (même si NULL, l'update fonctionne)
       await item.update({ display_order: i }, { transaction });
     }
     await transaction.commit();

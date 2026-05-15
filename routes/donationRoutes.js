@@ -10,10 +10,9 @@ const User = require('../models/User');
 router.use(authMiddleware);
 
 // Route pour faire un don direct (simulation, paiement immédiatement réussi)
-// À conserver pour les cas où on ne veut pas de paiement réel (optionnel)
 router.post('/', async (req, res) => {
     try {
-        const { project_id, amount, is_anonymous, donation_type } = req.body;
+        const { project_id, amount, is_anonymous, donation_type, description } = req.body;
         const user_id = req.userId;
 
         if (!project_id || !amount) {
@@ -29,7 +28,8 @@ router.post('/', async (req, res) => {
             is_anonymous: is_anonymous || false,
             donation_type: donation_type || 'one_time',
             status: 'success',
-            transaction_reference
+            transaction_reference,
+            description: description || null
         });
 
         res.status(201).json(donation);
@@ -41,7 +41,7 @@ router.post('/', async (req, res) => {
 // Route pour initier un don via JEKO (paiement réel)
 router.post('/initiate', async (req, res) => {
     try {
-        const { project_id, amount, is_anonymous, donation_type, paymentMethod } = req.body;
+        const { project_id, amount, is_anonymous, donation_type, paymentMethod, description } = req.body;
         const user_id = req.userId;
 
         if (!project_id || !amount) {
@@ -68,13 +68,14 @@ router.post('/initiate', async (req, res) => {
             is_anonymous: is_anonymous || false,
             donation_type: donation_type || 'one_time',
             status: 'pending',
-            transaction_reference
+            transaction_reference,
+            description: description || null
         });
 
         // Appeler le service JEKO pour initier le paiement
         const paymentResult = await paymentService.initiatePayment({
             amount: amount,
-            description: `Don pour projet ${project_id}`,
+            description: description || `Don pour projet ${project_id}`,
             customerPhone: user.phone,
             userId: user_id,
             paymentMethod: paymentMethod || 'wave'
