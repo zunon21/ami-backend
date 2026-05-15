@@ -2,17 +2,17 @@
 const sequelize = require('./database');
 const authRoutes = require('./routes/authRoutes');
 const projectRoutes = require('./routes/projectRoutes');
-// const donationRoutes = require('./routes/donationRoutes'); // Commenté temporairement
+const donationRoutes = require('./routes/donationRoutes'); // décommenté pour JEKO
 const serviceItemRoutes = require('./routes/serviceItemRoutes');
 const archiveRoutes = require('./routes/archiveRoutes');
+const webhookRoutes = require('./routes/webhookRoutes'); // nouveau
 const User = require('./models/User');
 const Project = require('./models/Project');
-// const Donation = require('./models/Donation');
+const Donation = require('./models/Donation');
 const UserProfile = require('./models/UserProfile');
 const UserCommitment = require('./models/UserCommitment');
 const UserServiceCommitment = require('./models/UserServiceCommitment');
 const Admin = require('./models/Admin');
-// Nouveaux modèles pour les tables service_categories et service_items
 const ServiceCategory = require('./models/ServiceCategory');
 const ServiceItem = require('./models/ServiceItem');
 const cors = require('cors');
@@ -23,27 +23,27 @@ const PORT = 5000;
 // Configuration CORS pour accepter toutes les origines (dépannage)
 app.use(cors({ origin: '*' }));
 
-app.use('/api/webhooks', express.raw({ type: 'application/json', limit: '50mb' }));
-app.post('/api/webhooks/chariow', async (req, res) => {
-    console.log('Webhook reçu (body brut) :', req.body.toString());
-    res.sendStatus(200);
-});
+// Middleware pour les webhooks (body brut, avant JSON)
+app.use('/api/payment/webhook', express.raw({ type: 'application/json' }));
 
+// Middleware JSON pour le reste des routes
 app.use(express.json({ limit: '50mb' }));
 
+// Synchronisation de la base de données
 sequelize.sync({ alter: true })
     .then(() => console.log('✅ Base de données synchronisée'))
     .catch(err => console.error('❌ Erreur sync:', err));
 
-// Middleware pour désactiver l'authentification (passe-plat)
+// Middleware pour désactiver l'authentification (passe-plat) – à utiliser avec précaution
 const noAuth = (req, res, next) => next();
 
-// Routes - L'authentification est désactivée pour toutes les routes /api/auth
+// Routes
 app.use('/api/auth', noAuth, authRoutes);
 app.use('/api/projects', projectRoutes);
-// app.use('/api/donations', donationRoutes); // Commenté temporairement
+app.use('/api/donations', donationRoutes); // activé
 app.use('/api/service-items', serviceItemRoutes);
 app.use('/api/archives', archiveRoutes);
+app.use('/api', webhookRoutes); // webhook et callbacks
 
 app.get('/', (req, res) => {
     res.send('API AMI opérationnelle');

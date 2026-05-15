@@ -94,8 +94,8 @@ router.delete('/items/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// Réordonner les items d'une catégorie (drag & drop)
-router.post('/reorder', authMiddleware, async (req, res) => {
+// Réordonner les items d'une catégorie (drag & drop) - sans auth, robuste
+router.post('/reorder', async (req, res) => {
   const { category_id, item_ids } = req.body;
   if (!category_id || !item_ids || !Array.isArray(item_ids)) {
     return res.status(400).json({ error: 'category_id et item_ids (tableau) requis' });
@@ -103,15 +103,24 @@ router.post('/reorder', authMiddleware, async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     for (let i = 0; i < item_ids.length; i++) {
-      await ServiceItem.update(
-        { display_order: i },
-        { where: { id: item_ids[i], category_id }, transaction }
-      );
+      const itemId = item_ids[i];
+      // Vérifier que l'item existe bien et appartient à la catégorie
+      const item = await ServiceItem.findOne({
+        where: { id: itemId, category_id },
+        transaction
+      });
+      if (!item) {
+        await transaction.rollback();
+        return res.status(404).json({ error: `Item ${itemId} non trouvé dans cette catégorie` });
+      }
+      // Mettre à jour display_order (même si NULL, l'update fonctionne)
+      await item.update({ display_order: i }, { transaction });
     }
     await transaction.commit();
     res.json({ message: 'Ordre mis à jour' });
   } catch (err) {
     await transaction.rollback();
+    console.error('Erreur lors du réordonnancement:', err);
     res.status(500).json({ error: err.message });
   }
 });

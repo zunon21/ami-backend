@@ -4,16 +4,17 @@ const Donation = require('../models/Donation');
 const { v4: uuidv4 } = require('uuid');
 const authMiddleware = require('../middleware/authMiddleware');
 const paymentService = require('../services/payment.service');
-const User = require('../models/User'); // <-- AJOUT pour récupérer le nom
+const User = require('../models/User');
 
 // Appliquer l'authentification à toutes les routes de dons
 router.use(authMiddleware);
 
 // Route pour faire un don direct (simulation, paiement immédiatement réussi)
+// À conserver pour les cas où on ne veut pas de paiement réel (optionnel)
 router.post('/', async (req, res) => {
     try {
         const { project_id, amount, is_anonymous, donation_type } = req.body;
-        const user_id = req.user.id;
+        const user_id = req.userId;
 
         if (!project_id || !amount) {
             return res.status(400).json({ error: 'project_id et amount sont requis' });
@@ -37,19 +38,26 @@ router.post('/', async (req, res) => {
     }
 });
 
-// NOUVELLE ROUTE : Initier un don via Chariow (paiement réel)
+// Route pour initier un don via JEKO (paiement réel)
 router.post('/initiate', async (req, res) => {
     try {
-        const { project_id, amount, is_anonymous, donation_type } = req.body;
-        const user_id = req.user.id;
+        const { project_id, amount, is_anonymous, donation_type, paymentMethod } = req.body;
+        const user_id = req.userId;
 
         if (!project_id || !amount) {
             return res.status(400).json({ error: 'project_id et amount sont requis' });
         }
 
-        // Récupérer le nom complet de l'utilisateur depuis la base
+        // Récupérer l'utilisateur depuis la base
         const user = await User.findByPk(user_id);
-        const customerName = user ? user.full_name : 'Partenaire AMI';
+        if (!user) {
+            return res.status(404).json({ error: 'Utilisateur non trouvé' });
+        }
+
+        // Vérifier que l'utilisateur a un numéro de téléphone
+        if (!user.phone) {
+            return res.status(400).json({ error: 'Numéro de téléphone manquant pour le paiement' });
+        }
 
         // Créer un don en attente de paiement
         const transaction_reference = uuidv4();
@@ -63,32 +71,34 @@ router.post('/initiate', async (req, res) => {
             transaction_reference
         });
 
-        // Demander l'URL de paiement au service Chariow
+        // Appeler le service JEKO pour initier le paiement
         const paymentResult = await paymentService.initiatePayment({
-            amount,
+            amount: amount,
             description: `Don pour projet ${project_id}`,
-            customerName: customerName,
-            projectId: project_id
+            customerPhone: user.phone,
+            userId: user_id,
+            paymentMethod: paymentMethod || 'wave'
         });
 
-        if (!paymentResult.success) {
-            throw new Error(paymentResult.error);
+        // Mettre à jour le don avec l'ID de transaction JEKO
+        if (paymentResult.transactionReference) {
+            await donation.update({ transaction_id: paymentResult.transactionReference });
         }
 
-        // Retourner l'URL de paiement à l'application mobile
         res.json({
             checkout_url: paymentResult.checkoutUrl,
-            transaction_reference: donation.transaction_reference
+            transaction_reference: donation.transaction_reference,
+            internal_reference: paymentResult.internalReference
         });
     } catch (error) {
-        console.error(error);
-        res.status(400).json({ error: error.message });
+        console.error('Erreur initiation paiement:', error);
+        res.status(500).json({ error: error.message || 'Erreur lors de l\'initiation du paiement' });
     }
 });
 
 // Récupérer l'historique des dons de l'utilisateur connecté
 router.get('/', async (req, res) => {
-    const donations = await Donation.findAll({ where: { user_id: req.user.id } });
+    const donations = await Donation.findAll({ where: { user_id: req.userId } });
     res.json(donations);
 });
 

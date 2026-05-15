@@ -23,6 +23,7 @@ const ServiceItem = sequelize.define('ServiceItem', {
   display_order: {
     type: DataTypes.INTEGER,
     defaultValue: 0,
+    allowNull: false,          // Ajouté pour garantir qu'il n'y a jamais de NULL
   },
   is_active: {
     type: DataTypes.BOOLEAN,
