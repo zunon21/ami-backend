@@ -3,55 +3,74 @@ const crypto = require('crypto');
 const router = express.Router();
 const Donation = require('../models/Donation');
 
-// Middleware de vérification de la signature HMAC-SHA256 de JEKO
+// Middleware de vérification de la signature HMAC-SHA256 avec raw body
 const verifyJekoSignature = (req, res, next) => {
   const signature = req.headers['jeko-signature'];
   if (!signature) {
-    console.log('Webhook: signature manquante');
+    console.error('Webhook: signature manquante');
     return res.status(401).send('Missing signature');
   }
-  const payload = JSON.stringify(req.body);
+  // Le body doit être un Buffer (grace à express.raw)
+  const payloadBuffer = req.body;
+  if (!Buffer.isBuffer(payloadBuffer)) {
+    console.error('Webhook: body n\'est pas un buffer');
+    return res.status(401).send('Invalid request');
+  }
   const expected = crypto
     .createHmac('sha256', process.env.JEKO_WEBHOOK_SECRET)
-    .update(payload)
+    .update(payloadBuffer)
     .digest('hex');
-  if (signature !== expected) {
-    console.log('Webhook: signature invalide');
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'))) {
+      console.error('Webhook: signature invalide');
+      return res.status(401).send('Invalid signature');
+    }
+  } catch (err) {
+    console.error('Erreur comparaison signature:', err);
     return res.status(401).send('Invalid signature');
   }
   next();
 };
 
-// Endpoint webhook pour les notifications de paiement JEKO
-router.post('/payment/webhook', verifyJekoSignature, async (req, res) => {
+// Endpoint webhook - utilise express.raw pour accéder au buffer brut
+router.post('/payment/webhook', express.raw({ type: 'application/json' }), verifyJekoSignature, async (req, res) => {
   try {
-    const { reference, status } = req.body;
-    console.log('Webhook reçu de JEKO:', { reference, status });
+    const payload = JSON.parse(req.body.toString('utf8'));
+    console.log('Webhook JEKO reçu:', JSON.stringify(payload, null, 2));
 
-    if (reference) {
-      // Mise à jour du don correspondant (en utilisant transaction_reference)
+    // La référence se trouve dans apiTransactionableDetails.reference (doc JEKO)
+    const reference = payload.apiTransactionableDetails?.reference;
+    const status = payload.status; // 'success', 'pending', 'error'
+
+    if (!reference) {
+      console.error('Webhook: référence manquante dans apiTransactionableDetails');
+      return res.status(400).send('Missing reference');
+    }
+
+    if (status === 'success') {
       const [updated] = await Donation.update(
-        { status: status === 'success' ? 'success' : 'failed' },
+        { status: 'success' },
         { where: { transaction_reference: reference } }
       );
       if (updated) {
-        console.log(`Don avec référence ${reference} mis à jour vers ${status}`);
+        console.log(`Don avec référence ${reference} mis à jour vers success`);
       } else {
         console.log(`Aucun don trouvé avec la référence ${reference}`);
       }
+    } else {
+      console.log(`Statut ignoré: ${status} pour référence ${reference}`);
     }
     res.sendStatus(200);
   } catch (err) {
-    console.error('Erreur lors du traitement du webhook:', err);
+    console.error('Erreur traitement webhook:', err);
     res.sendStatus(500);
   }
 });
 
-// Routes de callback pour les redirections (succès et erreur)
+// Routes de callback - inchangées
 router.get('/payment/success', (req, res) => {
   const { ref } = req.query;
   console.log('Paiement réussi, référence:', ref);
-  // Page HTML simple pour informer l'utilisateur
   res.send(`
     <html>
       <head><title>Paiement réussi</title></head>
