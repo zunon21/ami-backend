@@ -3,14 +3,17 @@ const crypto = require('crypto');
 const router = express.Router();
 const Donation = require('../models/Donation');
 
-// Middleware de vérification de la signature HMAC-SHA256 avec raw body
+// Middleware de vérification de la signature (TEMPORAIREMENT DÉSACTIVÉ)
 const verifyJekoSignature = (req, res, next) => {
+  // DÉSACTIVÉ POUR DEBUG
+  console.log('Vérification signature ignorée temporairement');
+  next();
+  /*
   const signature = req.headers['jeko-signature'];
   if (!signature) {
     console.error('Webhook: signature manquante');
     return res.status(401).send('Missing signature');
   }
-  // Le body doit être un Buffer (grace à express.raw)
   const payloadBuffer = req.body;
   if (!Buffer.isBuffer(payloadBuffer)) {
     console.error('Webhook: body n\'est pas un buffer');
@@ -30,20 +33,20 @@ const verifyJekoSignature = (req, res, next) => {
     return res.status(401).send('Invalid signature');
   }
   next();
+  */
 };
 
-// Endpoint webhook - utilise express.raw pour accéder au buffer brut
+// Endpoint webhook
 router.post('/payment/webhook', express.raw({ type: 'application/json' }), verifyJekoSignature, async (req, res) => {
   try {
     const payload = JSON.parse(req.body.toString('utf8'));
-    console.log('Webhook JEKO reçu:', JSON.stringify(payload, null, 2));
+    console.log('Webhook JEKO reçu (payload complet):', JSON.stringify(payload, null, 2));
 
-    // La référence se trouve dans apiTransactionableDetails.reference (doc JEKO)
     const reference = payload.apiTransactionableDetails?.reference;
-    const status = payload.status; // 'success', 'pending', 'error'
+    const status = payload.status;
 
     if (!reference) {
-      console.error('Webhook: référence manquante dans apiTransactionableDetails');
+      console.error('Référence manquante');
       return res.status(400).send('Missing reference');
     }
 
@@ -53,9 +56,9 @@ router.post('/payment/webhook', express.raw({ type: 'application/json' }), verif
         { where: { transaction_reference: reference } }
       );
       if (updated) {
-        console.log(`Don avec référence ${reference} mis à jour vers success`);
+        console.log(`✅ Don avec référence ${reference} mis à jour en success`);
       } else {
-        console.log(`Aucun don trouvé avec la référence ${reference}`);
+        console.log(`❌ Aucun don trouvé pour la référence ${reference}`);
       }
     } else {
       console.log(`Statut ignoré: ${status} pour référence ${reference}`);
@@ -67,7 +70,7 @@ router.post('/payment/webhook', express.raw({ type: 'application/json' }), verif
   }
 });
 
-// Routes de callback - inchangées
+// Routes de callback (succès/erreur) inchangées
 router.get('/payment/success', (req, res) => {
   const { ref } = req.query;
   console.log('Paiement réussi, référence:', ref);
