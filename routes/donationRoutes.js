@@ -7,7 +7,7 @@ const paymentService = require('../services/payment.service');
 const User = require('../models/User');
 
 // ========== ROUTES PUBLIQUES (sans authentification) ==========
-// Récupérer l'historique des dons (utilisé par le backoffice)
+// Récupérer l'historique des dons
 router.get('/', async (req, res) => {
     try {
         const donations = await Donation.findAll();
@@ -17,14 +17,12 @@ router.get('/', async (req, res) => {
     }
 });
 
-// ========== ROUTES PROTÉGÉES (authentification requise) ==========
-router.use(authMiddleware);
-
-// Route pour faire un don direct (simulation, paiement immédiatement réussi)
+// Route de test pour créer un don direct (sans authentification)
 router.post('/', async (req, res) => {
     try {
         const { project_id, amount, is_anonymous, donation_type, description, payment_method, extra_data } = req.body;
-        const user_id = req.userId;
+        // Pour le test, on utilise un user_id fictif (à remplacer par un vrai UUID si nécessaire)
+        const user_id = req.body.user_id || '00000000-0000-0000-0000-000000000001';
 
         if (!project_id || !amount) {
             return res.status(400).json({ error: 'project_id et amount sont requis' });
@@ -50,6 +48,9 @@ router.post('/', async (req, res) => {
         res.status(400).json({ error: error.message });
     }
 });
+
+// ========== ROUTES PROTÉGÉES (authentification requise) ==========
+router.use(authMiddleware);
 
 // Route pour initier un don via JEKO (paiement réel)
 router.post('/initiate', async (req, res) => {
@@ -94,7 +95,7 @@ router.post('/initiate', async (req, res) => {
             customerPhone: user.phone,
             userId: user_id,
             paymentMethod: paymentMethod || 'wave',
-            reference: transaction_reference  // <-- AJOUT ESSENTIEL
+            reference: transaction_reference
         });
 
         // Stocker l'ID de transaction JEKO dans extra_data
