@@ -3,11 +3,8 @@ const crypto = require('crypto');
 const router = express.Router();
 const Donation = require('../models/Donation');
 
-// Middleware de vérification de la signature (TEMPORAIREMENT DÉSACTIVÉ)
+// Middleware de vérification de la signature HMAC-SHA256
 const verifyJekoSignature = (req, res, next) => {
-  console.log('Vérification signature ignorée temporairement');
-  next();
-  /* // Réactiver plus tard
   const signature = req.headers['jeko-signature'];
   if (!signature) {
     console.error('Webhook: signature manquante');
@@ -32,16 +29,15 @@ const verifyJekoSignature = (req, res, next) => {
     return res.status(401).send('Invalid signature');
   }
   next();
-  */
 };
 
 // Endpoint webhook
 router.post('/payment/webhook', express.raw({ type: 'application/json' }), verifyJekoSignature, async (req, res) => {
   try {
     const payload = JSON.parse(req.body.toString('utf8'));
-    console.log('Webhook JEKO reçu (payload complet):', JSON.stringify(payload, null, 2));
+    console.log('Webhook JEKO reçu:', JSON.stringify(payload, null, 2));
 
-    // ✅ Correction : la référence est dans transactionDetails.reference
+    // La référence se trouve dans transactionDetails.reference (observé dans les logs)
     const reference = payload.transactionDetails?.reference;
     const status = payload.status;
 
