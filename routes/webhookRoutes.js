@@ -5,10 +5,9 @@ const Donation = require('../models/Donation');
 
 // Middleware de vérification de la signature (TEMPORAIREMENT DÉSACTIVÉ)
 const verifyJekoSignature = (req, res, next) => {
-  // DÉSACTIVÉ POUR DEBUG
   console.log('Vérification signature ignorée temporairement');
   next();
-  /*
+  /* // Réactiver plus tard
   const signature = req.headers['jeko-signature'];
   if (!signature) {
     console.error('Webhook: signature manquante');
@@ -42,11 +41,12 @@ router.post('/payment/webhook', express.raw({ type: 'application/json' }), verif
     const payload = JSON.parse(req.body.toString('utf8'));
     console.log('Webhook JEKO reçu (payload complet):', JSON.stringify(payload, null, 2));
 
-    const reference = payload.apiTransactionableDetails?.reference;
+    // ✅ Correction : la référence est dans transactionDetails.reference
+    const reference = payload.transactionDetails?.reference;
     const status = payload.status;
 
     if (!reference) {
-      console.error('Référence manquante');
+      console.error('Référence manquante dans transactionDetails');
       return res.status(400).send('Missing reference');
     }
 
@@ -70,7 +70,7 @@ router.post('/payment/webhook', express.raw({ type: 'application/json' }), verif
   }
 });
 
-// Routes de callback (succès/erreur) inchangées
+// Routes de callback (succès/erreur)
 router.get('/payment/success', (req, res) => {
   const { ref } = req.query;
   console.log('Paiement réussi, référence:', ref);
