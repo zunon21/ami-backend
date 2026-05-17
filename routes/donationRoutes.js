@@ -6,7 +6,18 @@ const authMiddleware = require('../middleware/authMiddleware');
 const paymentService = require('../services/payment.service');
 const User = require('../models/User');
 
-// Appliquer l'authentification à toutes les routes de dons
+// ========== ROUTES PUBLIQUES (sans authentification) ==========
+// Récupérer l'historique des dons (utilisé par le backoffice)
+router.get('/', async (req, res) => {
+    try {
+        const donations = await Donation.findAll();
+        res.json(donations);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ========== ROUTES PROTÉGÉES (authentification requise) ==========
 router.use(authMiddleware);
 
 // Route pour faire un don direct (simulation, paiement immédiatement réussi)
@@ -99,12 +110,6 @@ router.post('/initiate', async (req, res) => {
         console.error('Erreur initiation paiement:', error);
         res.status(500).json({ error: error.message || 'Erreur lors de l\'initiation du paiement' });
     }
-});
-
-// Récupérer l'historique des dons de l'utilisateur connecté
-router.get('/', async (req, res) => {
-    const donations = await Donation.findAll({ where: { user_id: req.userId } });
-    res.json(donations);
 });
 
 module.exports = router;
