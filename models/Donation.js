@@ -15,7 +15,7 @@ const Donation = sequelize.define('Donation', {
     project_id: {
         type: DataTypes.UUID,
         allowNull: false,
-        references: { model: 'projects', key: 'id' }
+        // references: { model: 'projects', key: 'id' }  // commenté car la table projects n'existe pas encore
     },
     amount: {
         type: DataTypes.DECIMAL(12,2),
