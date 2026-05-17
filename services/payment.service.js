@@ -1,5 +1,5 @@
 const axios = require('axios');
-const Donation = require('../models/Donation'); // Ajout de l'import
+const Donation = require('../models/Donation');
 
 class PaymentService {
   constructor() {
@@ -15,18 +15,26 @@ class PaymentService {
 
   /**
    * Initie un paiement via JEKO (redirection)
+   * @param {Object} params
+   * @param {number} params.amount
+   * @param {string} params.description
+   * @param {string} params.customerPhone
+   * @param {string} params.userId
+   * @param {string} params.paymentMethod
+   * @param {string} params.reference - Référence du don (transaction_reference)
    */
-  async initiatePayment({ amount, description, customerPhone, userId, paymentMethod = 'wave' }) {
+  async initiatePayment({ amount, description, customerPhone, userId, paymentMethod = 'wave', reference = null }) {
     try {
-      const reference = `don_${userId}_${Date.now()}`;
-      const successUrl = `${process.env.BASE_URL || 'https://ami-backend-gvuw.onrender.com'}/api/payment/success?ref=${reference}`;
-      const errorUrl = `${process.env.BASE_URL || 'https://ami-backend-gvuw.onrender.com'}/api/payment/error?ref=${reference}`;
+      // Utiliser la référence fournie (celle du don) ou en générer une (fallback)
+      const finalReference = reference || `don_${userId}_${Date.now()}`;
+      const successUrl = `${process.env.BASE_URL || 'https://ami-backend-gvuw.onrender.com'}/api/payment/success?ref=${finalReference}`;
+      const errorUrl = `${process.env.BASE_URL || 'https://ami-backend-gvuw.onrender.com'}/api/payment/error?ref=${finalReference}`;
 
       const payload = {
         storeId: process.env.JEKO_STORE_ID,
         amountCents: amount * 100,
         currency: 'XOF',
-        reference: reference,
+        reference: finalReference,
         paymentDetails: {
           type: 'redirect',
           data: {
@@ -44,7 +52,7 @@ class PaymentService {
         success: true,
         checkoutUrl: redirectUrl,
         transactionReference: id,
-        internalReference: reference,
+        internalReference: finalReference,
       };
     } catch (error) {
       console.error('Erreur JEKO:', error.response?.data || error.message);
@@ -60,8 +68,6 @@ class PaymentService {
     console.log('Webhook reçu:', payload);
 
     try {
-      // Le payload de JEKO contient probablement la référence interne (celle qu'on a envoyée)
-      // ou un identifiant de transaction. Adaptez selon la doc JEKO.
       const internalRef = payload.reference || payload.transaction_reference || payload.internalReference;
 
       if (!internalRef) {
@@ -69,14 +75,12 @@ class PaymentService {
         return { success: false, error: 'Référence manquante' };
       }
 
-      // Chercher le don par transaction_reference (champ stocké lors de la création)
       const donation = await Donation.findOne({ where: { transaction_reference: internalRef } });
       if (!donation) {
         console.error(`Webhook: don non trouvé pour la référence ${internalRef}`);
         return { success: false, error: 'Don non trouvé' };
       }
 
-      // Mettre à jour le statut
       await donation.update({ status: 'success' });
       console.log(`Don ${donation.id} mis à jour en success`);
 
