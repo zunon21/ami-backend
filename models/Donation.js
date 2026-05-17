@@ -10,7 +10,7 @@ const Donation = sequelize.define('Donation', {
     user_id: {
         type: DataTypes.UUID,
         allowNull: false,
-        references: { model: 'users', key: 'id' }
+        // references: { model: 'users', key: 'id' }  // commenté pour les tests
     },
     project_id: {
         type: DataTypes.UUID,
