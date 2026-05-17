@@ -96,9 +96,11 @@ router.post('/initiate', async (req, res) => {
             paymentMethod: paymentMethod || 'wave'
         });
 
-        // Mettre à jour le don avec l'ID de transaction JEKO
+        // Stocker l'ID de transaction JEKO dans extra_data (le champ transaction_id n'existe pas)
         if (paymentResult.transactionReference) {
-            await donation.update({ transaction_id: paymentResult.transactionReference });
+            const currentExtra = donation.extra_data || {};
+            currentExtra.jeko_transaction_id = paymentResult.transactionReference;
+            await donation.update({ extra_data: currentExtra });
         }
 
         res.json({
