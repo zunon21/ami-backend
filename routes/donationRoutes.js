@@ -87,16 +87,17 @@ router.post('/initiate', async (req, res) => {
             extra_data: extra_data || null
         });
 
-        // Appeler le service JEKO pour initier le paiement
+        // Appeler le service JEKO pour initier le paiement, en lui passant la référence du don
         const paymentResult = await paymentService.initiatePayment({
             amount: amount,
             description: description || `Don pour projet ${project_id}`,
             customerPhone: user.phone,
             userId: user_id,
-            paymentMethod: paymentMethod || 'wave'
+            paymentMethod: paymentMethod || 'wave',
+            reference: transaction_reference  // <-- AJOUT ESSENTIEL
         });
 
-        // Stocker l'ID de transaction JEKO dans extra_data (le champ transaction_id n'existe pas)
+        // Stocker l'ID de transaction JEKO dans extra_data
         if (paymentResult.transactionReference) {
             const currentExtra = donation.extra_data || {};
             currentExtra.jeko_transaction_id = paymentResult.transactionReference;
