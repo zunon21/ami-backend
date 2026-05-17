@@ -1,4 +1,5 @@
 const axios = require('axios');
+const Donation = require('../models/Donation'); // Ajout de l'import
 
 class PaymentService {
   constructor() {
@@ -14,13 +15,6 @@ class PaymentService {
 
   /**
    * Initie un paiement via JEKO (redirection)
-   * @param {Object} params
-   * @param {number} params.amount - Montant en FCFA
-   * @param {string} params.description - Description de la transaction
-   * @param {string} params.customerPhone - Téléphone du client (optionnel pour redirect)
-   * @param {string} params.userId - ID utilisateur
-   * @param {string} params.paymentMethod - wave, orange, mtn, moov, djamo
-   * @returns {Promise<{success: boolean, checkoutUrl: string, transactionReference: string}>}
    */
   async initiatePayment({ amount, description, customerPhone, userId, paymentMethod = 'wave' }) {
     try {
@@ -30,7 +24,7 @@ class PaymentService {
 
       const payload = {
         storeId: process.env.JEKO_STORE_ID,
-        amountCents: amount * 100, // JEKO attend les montants en centimes (ex: 10000 pour 100 FCFA)
+        amountCents: amount * 100,
         currency: 'XOF',
         reference: reference,
         paymentDetails: {
@@ -60,15 +54,37 @@ class PaymentService {
 
   /**
    * Gère le webhook de confirmation de paiement (appelé par JEKO)
-   * @param {Object} payload - Corps de la requête
-   * @param {string} signature - Header de signature (optionnel)
-   * @returns {Promise<{success: boolean}>}
+   * Met à jour le statut du don en 'success'
    */
   async handleWebhook(payload, signature) {
-    // La vérification de la signature est normalement faite dans un middleware
-    // Ici on se contente de logger et de retourner un succès
     console.log('Webhook reçu:', payload);
-    return { success: true };
+
+    try {
+      // Le payload de JEKO contient probablement la référence interne (celle qu'on a envoyée)
+      // ou un identifiant de transaction. Adaptez selon la doc JEKO.
+      const internalRef = payload.reference || payload.transaction_reference || payload.internalReference;
+
+      if (!internalRef) {
+        console.error('Webhook: référence manquante dans le payload');
+        return { success: false, error: 'Référence manquante' };
+      }
+
+      // Chercher le don par transaction_reference (champ stocké lors de la création)
+      const donation = await Donation.findOne({ where: { transaction_reference: internalRef } });
+      if (!donation) {
+        console.error(`Webhook: don non trouvé pour la référence ${internalRef}`);
+        return { success: false, error: 'Don non trouvé' };
+      }
+
+      // Mettre à jour le statut
+      await donation.update({ status: 'success' });
+      console.log(`Don ${donation.id} mis à jour en success`);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Erreur lors du traitement du webhook:', error);
+      return { success: false, error: error.message };
+    }
   }
 }
 
