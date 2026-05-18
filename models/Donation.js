@@ -9,13 +9,13 @@ const Donation = sequelize.define('Donation', {
     },
     user_id: {
         type: DataTypes.UUID,
-        allowNull: true,  // Changement : false → true
+        allowNull: true,
         // references: { model: 'users', key: 'id' }  // commenté pour les tests
     },
     project_id: {
         type: DataTypes.UUID,
-        allowNull: true,  // Changement : false → true
-        // references: { model: 'projects', key: 'id' }  // commenté car la table projects n'existe pas encore
+        allowNull: true,
+        // references: { model: 'projects', key: 'id' }  // commenté
     },
     amount: {
         type: DataTypes.DECIMAL(12,2),
@@ -37,6 +37,11 @@ const Donation = sequelize.define('Donation', {
         type: DataTypes.ENUM('one_time', 'recurring'),
         defaultValue: 'one_time'
     },
+    description: {               // ← NOUVEAU CHAMP OBLIGATOIRE
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        comment: 'Nom de l’engagement (ex: Missionnaire - Jean, Zones - San Pedro, etc.)'
+    },
     payment_method: {
         type: DataTypes.STRING(20),
         allowNull: true,
@@ -45,7 +50,7 @@ const Donation = sequelize.define('Donation', {
     extra_data: {
         type: DataTypes.JSON,
         allowNull: true,
-        comment: 'Stockage des infos supplémentaires (organisation, destinations, etc.)'
+        comment: 'Stockage des infos supplémentaires (organisation, destinations, raison, etc.)'
     }
 }, {
     tableName: 'donations',
