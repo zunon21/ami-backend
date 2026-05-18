@@ -15,17 +15,9 @@ class PaymentService {
 
   /**
    * Initie un paiement via JEKO (redirection)
-   * @param {Object} params
-   * @param {number} params.amount
-   * @param {string} params.description
-   * @param {string} params.customerPhone
-   * @param {string} params.userId
-   * @param {string} params.paymentMethod
-   * @param {string} params.reference - Référence du don (transaction_reference)
    */
   async initiatePayment({ amount, description, customerPhone, userId, paymentMethod = 'wave', reference = null }) {
     try {
-      // Utiliser la référence fournie (celle du don) ou en générer une (fallback)
       const finalReference = reference || `don_${userId}_${Date.now()}`;
       const successUrl = `${process.env.BASE_URL || 'https://ami-backend-gvuw.onrender.com'}/api/payment/success?ref=${finalReference}`;
       const errorUrl = `${process.env.BASE_URL || 'https://ami-backend-gvuw.onrender.com'}/api/payment/error?ref=${finalReference}`;
@@ -61,32 +53,35 @@ class PaymentService {
   }
 
   /**
-   * Gère le webhook de confirmation de paiement (appelé par JEKO)
-   * Met à jour le statut du don en 'success'
+   * Gère le webhook de confirmation de paiement (conforme à la doc JEKO)
    */
-  async handleWebhook(payload, signature) {
-    console.log('Webhook reçu:', payload);
+  async handleWebhook(payloadBuffer, signature) {
+    console.log('Webhook reçu dans PaymentService');
 
     try {
-      const internalRef = payload.reference || payload.transaction_reference || payload.internalReference;
-
+      const payload = JSON.parse(payloadBuffer.toString('utf8'));
+      // La référence se trouve dans apiTransactionableDetails.reference
+      const internalRef = payload.apiTransactionableDetails?.reference;
       if (!internalRef) {
-        console.error('Webhook: référence manquante dans le payload');
+        console.error('Webhook: référence manquante');
         return { success: false, error: 'Référence manquante' };
       }
 
       const donation = await Donation.findOne({ where: { transaction_reference: internalRef } });
       if (!donation) {
-        console.error(`Webhook: don non trouvé pour la référence ${internalRef}`);
+        console.error(`Webhook: don non trouvé pour ${internalRef}`);
         return { success: false, error: 'Don non trouvé' };
       }
 
-      await donation.update({ status: 'success' });
-      console.log(`Don ${donation.id} mis à jour en success`);
-
+      if (payload.status === 'success') {
+        await donation.update({ status: 'success' });
+        console.log(`Don ${donation.id} mis à jour en success`);
+      } else {
+        console.log(`Statut ignoré: ${payload.status}`);
+      }
       return { success: true };
     } catch (error) {
-      console.error('Erreur lors du traitement du webhook:', error);
+      console.error('Erreur traitement webhook:', error);
       return { success: false, error: error.message };
     }
   }

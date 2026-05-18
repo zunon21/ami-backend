@@ -32,7 +32,7 @@ module.exports = {
       },
     });
 
-    // 2. Créer la table service_items
+    // 2. Créer la table service_items avec display_order
     await queryInterface.createTable('service_items', {
       id: {
         type: Sequelize.UUID,
@@ -50,6 +50,11 @@ module.exports = {
       },
       name: {
         type: Sequelize.STRING(100),
+        allowNull: false,
+      },
+      display_order: {               // ✅ colonne manquante ajoutée
+        type: Sequelize.INTEGER,
+        defaultValue: 0,
         allowNull: false,
       },
       is_active: {
@@ -84,7 +89,7 @@ module.exports = {
       defaultValue: false,
     });
 
-    // 4. Insérer les catégories existantes (avec ordre)
+    // 4. Insérer les catégories existantes
     const categories = [
       'Champs', 'Projets', 'IIFM', 'Missionnaire',
       'Départements', 'Activités', 'Social', 'Équipements', 'Zones'
